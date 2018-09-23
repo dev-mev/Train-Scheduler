@@ -9,7 +9,7 @@ var config = {
 };
 firebase.initializeApp(config);
 
-var database = firebase.database()
+var database = firebase.database();
 
 $("#add-train").click(function(event){
     event.preventDefault();
@@ -19,38 +19,38 @@ $("#add-train").click(function(event){
     var firstTrainTime = $("#first-train-input").val().trim();
     var trainFrequency = $("#frequency-input").val().trim();
 
-    var newTrain = {
-        name: trainName,
-        destination: trainDestination,
-        firstTrain: firstTrainTime,
-        frequency: trainFrequency
+    //Time validation
+    if (!moment(firstTrainTime, "HH:mm").isValid()){
+        alert("Please enter time in military time.");
+        $("#first-train-input").focus();
     }
+    //Number validation
+    else if(!parseInt(trainFrequency)){
+        alert("Please enter a number.");
+        $("#frequency-input").focus();
+    }
+    else{
+        //uploads train info to database
+        database.ref().push({
+            name: trainName,
+            destination: trainDestination,
+            firstTrain: firstTrainTime,
+            frequency: trainFrequency
+        });
 
-    //uploads train info to database
-    database.ref().push({
-        name: trainName,
-        destination: trainDestination,
-        firstTrain: firstTrainTime,
-        frequency: trainFrequency
-    });
+        $("#train-added-modal").modal();
 
-    console.log(newTrain.name);
-    console.log(newTrain.destination);
-    console.log(newTrain.firstTrain);
-    console.log(newTrain.frequency);
-
-    alert("Train added")
-
-    // Clears all of the text-boxes
-    $("#name-input").val("");
-    $("#destination-input").val("");
-    $("#first-train-input").val("");
-    $("#frequency-input").val("");
+        // Clears all of the text-boxes
+        $("#name-input").val("");
+        $("#destination-input").val("");
+        $("#first-train-input").val("");
+        $("#frequency-input").val("");
+    };
 });
 
-// Create Firebase event for adding employee to the database and a row in the html when a user adds an entry
+
+// Create Firebase event for adding train to the database and a row in the html when a user adds an entry
 database.ref().on("child_added", function(childSnapshot) {
-    console.log(childSnapshot.val());
 
     // Store everything into a variable.
     var trainName = childSnapshot.val().name;
@@ -58,30 +58,35 @@ database.ref().on("child_added", function(childSnapshot) {
     var firstTrainTime = childSnapshot.val().firstTrain;
     var trainFrequency = childSnapshot.val().frequency;
 
-    // Employee Info
-    console.log(trainName);
-    console.log(trainDestination);
-    console.log(firstTrainTime);
-    console.log(trainFrequency);
+    //calculate next arrival
+    // Assumptions
+    var tFrequency = trainFrequency;
 
-    // // Prettify the employee start
-    // var empStartPretty = moment(empStart).format("MM/DD/YYYY");
-    // console.log('Start Date', empStartPretty)
-    // // Calculate the months worked using hardcore math
-    // // To calculate the months worked
-    // var empMonths = moment().diff(moment(empStart), "months");
-    // console.log(empMonths);
+    // Time is firstTrainTime
+    var firstTime = firstTrainTime;
 
-    // // Calculate the total billed rate
-    // var empBilled = empMonths * empRate;
-    // console.log(empBilled);
+    // First Time (pushed back 1 year to make sure it comes before current time)
+    var firstTimeConverted = moment(firstTime, "HH:mm").subtract(1, "years");
+
+    // Difference between the times
+    var diffTime = moment().diff(moment(firstTimeConverted), "minutes");
+
+    // Time apart (remainder)
+    var tRemainder = diffTime % tFrequency;
+
+    // Minute Until Train
+    var tMinutesTilTrain = tFrequency - tRemainder;
+
+    // Next Train
+    var nextTrain = moment().add(tMinutesTilTrain, "minutes");
 
     // Create the new row
     var newRow = $("<tr>").append(
         $("<td>").text(trainName),
         $("<td>").text(trainDestination),
-        $("<td>").text(firstTrainTime),
-        $("<td>").text(trainFrequency)
+        $("<td>").text(tFrequency + " minutes"),
+        $("<td>").text(moment(nextTrain).calendar()),
+        $("<td>").text(tMinutesTilTrain + " minutes")
     );
 
     // Append the new row to the table
